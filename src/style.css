@@ -97,16 +97,27 @@ button {
    =================================================================== */
 
 .stage {
+  position: relative;
   width: 100vw;
   height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  /* Dark olive rather than flat black — the fixed-canvas art's own edges
-     are a dark grass tone, so any unavoidable letterboxing (aspect-ratio
-     mismatch against the device) reads as shadow instead of a stark bar. */
+  /* Fallback for the sliver of a mismatch, if any, between the stage-bg
+     image's own edge and the viewport — the art should cover this in
+     practice, dark olive just keeps anything peeking through from
+     reading as a stark black bar. */
   background: #17170c;
+}
+
+.stage-bg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  pointer-events: none;
+  user-select: none;
 }
 
 .canvas {

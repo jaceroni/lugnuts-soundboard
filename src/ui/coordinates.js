@@ -1,18 +1,29 @@
 import coordinates from '../data/coordinates.json'
 
 export const CANVAS = coordinates.canvas
+
+// The wide backdrop's own natural size — its center 2048x1536 is pixel-
+// identical to the main panel art (just extra grass bled onto the sides),
+// so it scales/centers in lockstep with the canvas rather than living on
+// its own coordinate system.
+export const STAGE_BG_SIZE = { w: 2386, h: 1536 }
 export const MASTER_METER = coordinates.masterMeter
 export const CLOCK = coordinates.clock
 export const STOP_ALL = coordinates.controls.stopAll
 
 // No coordinate table entry for the mascot badge either — measured
 // directly off the art (it's the circular "REDDING LUGNUTS" badge, top
-// left of the panel).
-export const LOGO = { x: 18, y: 18, w: 260, h: 260 }
+// left of the panel). Re-measured after the art was updated to shrink and
+// reposition the badge so it stops colliding with iOS's own exit-fullscreen
+// control in that corner.
+export const LOGO = { x: 92, y: 48, w: 208, h: 208 }
 
-// The blank plate to the right of STOP ALL (screwed-down bezel, no baked
-// label) — measured off the art the same way. Repurposed as the fullscreen
-// toggle since it wasn't doing anything.
+// The clock housing plate, independently measured off the art (this
+// overlaps coordinates.clock.housing — same physical plate, two separate
+// measurements of it). Doubling as the fullscreen toggle's hit area: fine
+// to sit over the clock digits while not yet fullscreen (prompts the user
+// to notice it), but the control itself hides once fullscreen is engaged
+// so the clock is fully visible again.
 export const FULLSCREEN_PLATE = { x: 1622, y: 62, w: 376, h: 152 }
 
 const topRowById = new Map(coordinates.topRow.map((slot) => [slot.id, slot]))

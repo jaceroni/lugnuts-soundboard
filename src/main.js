@@ -17,6 +17,7 @@ import { startClock } from './ui/clock.js'
 import { renderDetailCard } from './ui/detailCard.js'
 import {
   CANVAS,
+  STAGE_BG_SIZE,
   MASTER_METER,
   STOP_ALL,
   LOGO,
@@ -70,6 +71,20 @@ function handlePadActivate(pad) {
 // never from ad hoc CSS breakpoints. ---
 const app = document.getElementById('app')
 const stage = el('div', 'stage')
+
+// Sits behind the canvas, scaled/centered identically — its center
+// 2048x1536 is covered exactly by the canvas above it, so the only part
+// that's ever visible is the extra grass bled onto its sides, filling in
+// what would otherwise be flat letterbox bars on a non-4:3 screen.
+const stageBg = el(
+  'img',
+  'stage-bg',
+  `width:${STAGE_BG_SIZE.w}px; height:${STAGE_BG_SIZE.h}px;`
+)
+stageBg.src = '/art/panel-bg.png'
+stageBg.alt = ''
+stageBg.draggable = false
+
 const canvas = el('div', 'canvas', `width:${CANVAS.w}px; height:${CANVAS.h}px;`)
 const photoLayer = el('div', 'layer photo-layer')
 const artImg = el('img', 'layer art-layer')
@@ -80,12 +95,13 @@ const overlayLayer = el('div', 'layer overlay-layer')
 const hitLayer = el('div', 'layer hit-layer')
 
 canvas.append(photoLayer, artImg, overlayLayer, hitLayer)
-stage.append(canvas)
+stage.append(stageBg, canvas)
 app.append(stage)
 
 function applyScale() {
   const scale = Math.min(stage.clientWidth / CANVAS.w, stage.clientHeight / CANVAS.h)
   canvas.style.transform = `scale(${scale})`
+  stageBg.style.transform = `translate(-50%, -50%) scale(${scale})`
 }
 new ResizeObserver(applyScale).observe(stage)
 applyScale()
@@ -187,26 +203,28 @@ if (canFullscreen) {
   fullscreenLabel.textContent = 'FULLSCREEN'
   overlayLayer.appendChild(fullscreenLabel)
 
+  // Only ever shown/clickable when NOT already fullscreen — it sitting over
+  // the clock is fine as a one-time prompt, but once fullscreen is engaged
+  // the control disappears entirely so the clock reads clearly; exiting
+  // relies on the browser's own fullscreen-exit affordance instead.
   const fullscreenHit = el('button', 'hit-target', rectStyle(FULLSCREEN_PLATE))
   fullscreenHit.type = 'button'
-  fullscreenHit.setAttribute('aria-label', 'Toggle fullscreen')
+  fullscreenHit.setAttribute('aria-label', 'Enter fullscreen')
   fullscreenHit.addEventListener('click', () => {
-    if (fullscreenElement()) {
-      ;(document.exitFullscreen || document.webkitExitFullscreen)?.call(document)
-    } else {
-      const target = document.documentElement
-      ;(target.requestFullscreen || target.webkitRequestFullscreen)?.call(target)
-    }
+    const target = document.documentElement
+    ;(target.requestFullscreen || target.webkitRequestFullscreen)?.call(target)
     fullscreenGlow.classList.add('is-active')
     setTimeout(() => fullscreenGlow.classList.remove('is-active'), 220)
   })
   hitLayer.appendChild(fullscreenHit)
 
-  const updateFullscreenLabel = () => {
-    fullscreenLabel.textContent = fullscreenElement() ? 'EXIT FULLSCREEN' : 'FULLSCREEN'
+  const updateFullscreenControl = () => {
+    const active = Boolean(fullscreenElement())
+    fullscreenLabel.style.display = active ? 'none' : 'flex'
+    fullscreenHit.style.display = active ? 'none' : 'block'
   }
-  document.addEventListener('fullscreenchange', updateFullscreenLabel)
-  document.addEventListener('webkitfullscreenchange', updateFullscreenLabel)
+  document.addEventListener('fullscreenchange', updateFullscreenControl)
+  document.addEventListener('webkitfullscreenchange', updateFullscreenControl)
 }
 
 // --- Walk-Ups ---
