@@ -187,9 +187,17 @@ function fullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null
 }
 
-const canFullscreen = Boolean(
-  document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen
-)
+// Launched from the home screen (Safari's "Add to Home Screen") runs with
+// no browser chrome at all — no Fullscreen API involved, so nothing to
+// toggle and, more importantly, none of WebKit's fullscreen-session heuristics
+// (the ones that can interrupt a rapid volley of taps with an exit warning)
+// apply either. The plate just stays blank/inert here, same as on iPhone.
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+
+const canFullscreen =
+  !isStandalone &&
+  Boolean(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)
 
 if (canFullscreen) {
   const fullscreenGlow = el('div', 'stopall-glow', rectStyle(FULLSCREEN_PLATE))
