@@ -4,11 +4,10 @@ A game-day soundboard PWA for the Redding Lugnuts (Shasta Baseball League). Buil
 
 ## How it plays
 
-- **Walk-up songs** are mutually exclusive — starting one cuts off whatever other walk-up song is playing. Retriggering the same one restarts it (a soundboard trigger, not a play/stop toggle).
-- **The whole top row** (pregame cues + ballpark FX) is independent of everything — each pad is its own trigger that never cuts, and is never cut by, anything else, including a playing walk-up song. Any number of top-row pads can run at once.
+- **Two independent exclusive lanes:** walk-up songs and the top row (pregame cues + ballpark FX) each behave like their own soundboard — starting a pad cuts off whatever else in that *same* lane is playing, and retriggering the same pad restarts it rather than toggling it off. The two lanes never interact: a top-row pad can play over a walk-up song and vice versa, but you can never have two walk-up songs or two top-row pads going at once.
 - **Crowd Cheer / Crowd Upset** fade in over 500ms instead of starting abruptly; every other pad starts instantly.
 - **Hold** a walk-up pad (~550ms) to open that player's detail card, if one's been delivered — otherwise a toast lets you know it's not ready yet.
-- **STOP ALL** kills every currently playing sound. **Fullscreen** (top right, iPadOS Safari 16.4+) hides itself once engaged, relying on the browser's own exit control from there.
+- **STOP ALL** kills every currently playing sound. **Fullscreen** (top right, iPadOS Safari 16.4+) hides itself once engaged, and doesn't appear at all when launched standalone from the home screen (Safari → Share → Add to Home Screen) — that mode also skips the Fullscreen API entirely, which is the more reliable way to get a chrome-free iPad experience without occasionally tripping WebKit's own fullscreen-exit warning during a fast volley of taps.
 
 ## Stack
 
@@ -26,7 +25,7 @@ Where the delivered coordinate table doesn't cover something (the mascot badge, 
 
 ## Content model
 
-`src/data/pads.js` is the single source of truth for playback config — joins the coordinate table (art positions) with audio files, roster data, and behavior flags (`layered`, `fadeInMs`, `cardImage`). Adding or swapping a real asset is a one-line edit to one of the filename maps in that file:
+`src/data/pads.js` is the single source of truth for playback config — joins the coordinate table (art positions) with audio files, roster data, and behavior flags (`fadeInMs`, `cardImage`). Adding or swapping a real asset is a one-line edit to one of the filename maps in that file:
 
 - `AUDIO_FILENAMES` — maps a pad id to its delivered audio filename in `public/audio/`
 - `CARD_IMAGES` — maps a walk-up pad id to its delivered Player Detail Card PNG in `public/players/`
