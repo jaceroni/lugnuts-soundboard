@@ -20,13 +20,9 @@
 //   fadeInMs: number         — pregame/fx only: ramps in from silence over this
 //                              many ms instead of starting instantly; 0 = no fade
 //   jerseyNumber: string | null   — walkup only
-//   position: string | null       — walkup only, player's field position(s)
-//   stats: { hitting, baserunning, defense, armStrength } | null — walkup only, 0-100
-//   detailPhoto: string | null    — walkup only, portrait for the Player Detail Card
-//   cardImage: string | null      — walkup only, a pre-designed flattened card graphic;
-//                                    when set, the Player Detail Card shows this image
-//                                    instead of the data-driven HTML template (and it
-//                                    already has its own close X baked in)
+//   cardImage: string | null      — walkup only, the Player Detail Card's pre-designed
+//                                    flattened graphic (own close X baked in); holding a
+//                                    pad with no cardImage just shows a "not ready" toast
 // }
 
 import coordinates from './coordinates.json'
@@ -88,9 +84,6 @@ const walkupPads = coordinates.walkups.map((slot) => ({
   hasAudio: slot.hasAudio,
   layered: false,
   jerseyNumber: slot.jerseyNumber,
-  position: null,
-  stats: null,
-  detailPhoto: null,
   cardImage: CARD_IMAGES[slot.id] ?? null,
 }))
 

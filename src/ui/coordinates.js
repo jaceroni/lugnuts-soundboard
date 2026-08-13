@@ -110,33 +110,6 @@ export function captionRectFor(pad) {
   return { x: art.x, y: art.y + art.h + CAPTION_GAP, w: art.w, h: CAPTION_HEIGHT }
 }
 
-// Bounding box of the whole Walk-Up section, derived from every walkup
-// slot's own rects (the table has no standalone "section frame" entry).
-export function walkupSectionBounds() {
-  const slots = coordinates.walkups
-  const minX = Math.min(...slots.map((s) => s.number.x))
-  const maxX = Math.max(...slots.map((s) => s.number.x + s.number.w))
-  const minY = Math.min(...slots.map((s) => s.number.y))
-  const maxY = Math.max(...slots.map((s) => s.nameBar.y + s.nameBar.h))
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
-}
-
-// No coordinate is supplied for the detail card's close control either, so
-// it's pinned to the top-right corner of the derived Walk-Up section bounds
-// with one shared inset constant, rather than a one-off magic number.
-const CLOSE_BUTTON_SIZE = 56
-const CLOSE_BUTTON_MARGIN = 24
-
-export function closeButtonRect() {
-  const bounds = walkupSectionBounds()
-  return {
-    x: bounds.x + bounds.w - CLOSE_BUTTON_MARGIN - CLOSE_BUTTON_SIZE,
-    y: bounds.y + CLOSE_BUTTON_MARGIN,
-    w: CLOSE_BUTTON_SIZE,
-    h: CLOSE_BUTTON_SIZE,
-  }
-}
-
 // Pre-designed player card graphics (pad.cardImage) are delivered as a
 // single flattened, fully-opaque PNG — full canvas width, anchored to the
 // bottom edge — with their own close X already drawn into the art rather

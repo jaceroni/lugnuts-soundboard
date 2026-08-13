@@ -14,7 +14,6 @@ import { createToastRegion, showToast } from './ui/toast.js'
 import { SoundEngine } from './audio/engine.js'
 import { MasterMeter } from './ui/meter.js'
 import { startClock } from './ui/clock.js'
-import { renderDetailCard } from './ui/detailCard.js'
 import {
   CANVAS,
   STAGE_BG_SIZE,
@@ -29,15 +28,12 @@ import {
   ledRectFor,
   clockRect,
   captionRectFor,
-  walkupSectionBounds,
-  closeButtonRect,
   playerCardImageRect,
   playerCardCloseRect,
   rectStyle,
 } from './ui/coordinates.js'
 
 const ART_PRIMARY = '/art/panel-primary.png'
-const ART_PLAYER = '/art/panel-player.png'
 const HOLD_THRESHOLD_MS = 550
 
 const engine = new SoundEngine()
@@ -245,7 +241,11 @@ function wireWalkupGestures(hitEl, pad) {
     holdFired = false
     holdTimer = setTimeout(() => {
       holdFired = true
-      openDetailCard(pad)
+      if (pad.cardImage) {
+        openDetailCard(pad)
+      } else {
+        showToast(toastRegion, "This player's card isn't ready yet.")
+      }
     }, HOLD_THRESHOLD_MS)
   })
 
@@ -288,26 +288,16 @@ walkupPads.forEach((pad) => {
 })
 
 // --- Player Detail Card ---
-// Two ways to present it: a pre-designed flattened PNG (pad.cardImage) when
-// one's been delivered for that player — full width, anchored to the
-// bottom, its own close X baked in — or the data-driven HTML template as a
-// fallback for every player who doesn't have real card art yet.
-const detailCardBounds = walkupSectionBounds()
-const detailCard = el('div', 'detail-card', rectStyle(detailCardBounds))
-detailCard.style.display = 'none'
-overlayLayer.appendChild(detailCard)
-
+// A pre-designed flattened PNG (pad.cardImage) — full width, anchored to
+// the bottom of the canvas, its own close X baked into the art. Only
+// wired up for players who actually have one (see wireWalkupGestures);
+// everyone else gets a "not ready yet" toast on hold instead.
 const cardImageEl = el('img', 'player-card-image', rectStyle(playerCardImageRect()))
 cardImageEl.alt = ''
 cardImageEl.style.display = 'none'
 overlayLayer.appendChild(cardImageEl)
 
-const closeGlyph = el('div', 'detail-close-glyph', rectStyle(closeButtonRect()))
-closeGlyph.textContent = '×'
-closeGlyph.style.display = 'none'
-overlayLayer.appendChild(closeGlyph)
-
-const closeHit = el('button', 'hit-target', rectStyle(closeButtonRect()))
+const closeHit = el('button', 'hit-target', rectStyle(playerCardCloseRect()))
 closeHit.type = 'button'
 closeHit.style.display = 'none'
 closeHit.setAttribute('aria-label', 'Close player card')
@@ -318,29 +308,16 @@ function openDetailCard(pad) {
   detailPad = pad
   walkupOverlayGroup.style.visibility = 'hidden'
   walkupHitGroup.style.visibility = 'hidden'
-
-  if (pad.cardImage) {
-    cardImageEl.src = pad.cardImage
-    cardImageEl.style.display = 'block'
-    closeHit.style.cssText = rectStyle(playerCardCloseRect())
-  } else {
-    artImg.src = ART_PLAYER
-    detailCard.innerHTML = renderDetailCard(pad)
-    detailCard.style.display = 'block'
-    closeGlyph.style.display = 'flex'
-    closeHit.style.cssText = rectStyle(closeButtonRect())
-  }
+  cardImageEl.src = pad.cardImage
+  cardImageEl.style.display = 'block'
   closeHit.style.display = 'block'
 }
 
 function closeDetailCard() {
   detailPad = null
-  artImg.src = ART_PRIMARY
   walkupOverlayGroup.style.visibility = ''
   walkupHitGroup.style.visibility = ''
-  detailCard.style.display = 'none'
   cardImageEl.style.display = 'none'
-  closeGlyph.style.display = 'none'
   closeHit.style.display = 'none'
 }
 
