@@ -1,0 +1,307 @@
+import '@fontsource/big-shoulders-stencil-display/700'
+import '@fontsource/big-shoulders-stencil-display/800'
+import '@fontsource/barlow/400.css'
+import '@fontsource/barlow/500.css'
+import '@fontsource/barlow/600.css'
+import '@fontsource/barlow/700.css'
+import '@fontsource/ibm-plex-mono/500.css'
+import '@fontsource/ibm-plex-mono/600.css'
+import '@fontsource/barlow-condensed/700.css'
+import './style.css'
+
+import { pads } from './data/pads.js'
+import { createToastRegion, showToast } from './ui/toast.js'
+import { SoundEngine } from './audio/engine.js'
+import { MasterMeter } from './ui/meter.js'
+import { startClock } from './ui/clock.js'
+import { renderDetailCard } from './ui/detailCard.js'
+import {
+  CANVAS,
+  MASTER_METER,
+  STOP_ALL,
+  LOGO,
+  slotFor,
+  hitRectFor,
+  numberRectFor,
+  nameRectFor,
+  ledRectFor,
+  clockRect,
+  captionRectFor,
+  walkupSectionBounds,
+  closeButtonRect,
+  playerCardImageRect,
+  playerCardCloseRect,
+  rectStyle,
+} from './ui/coordinates.js'
+
+const ART_PRIMARY = '/art/panel-primary.png'
+const ART_PLAYER = '/art/panel-player.png'
+const HOLD_THRESHOLD_MS = 550
+
+const engine = new SoundEngine()
+const toastRegion = createToastRegion()
+document.body.appendChild(toastRegion)
+
+const padRefs = new Map()
+let detailPad = null
+
+function el(tag, className, styleText) {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (styleText) node.style.cssText = styleText
+  return node
+}
+
+const TRIGGER_FAILURE_MESSAGES = {
+  'coming-soon': "This cue isn't loaded yet.",
+  loading: 'Still loading — try again in a second.',
+  unavailable: 'Audio file missing for this cue.',
+}
+
+function handlePadActivate(pad) {
+  const result = engine.trigger(pad)
+  if (result.ok) return
+  showToast(toastRegion, TRIGGER_FAILURE_MESSAGES[result.reason])
+}
+
+// --- Stage: fixed 2048x1536 canvas, scaled as a single unit to fit the
+// viewport. Every dynamic element is positioned from the coordinate table,
+// never from ad hoc CSS breakpoints. ---
+const app = document.getElementById('app')
+const stage = el('div', 'stage')
+const canvas = el('div', 'canvas', `width:${CANVAS.w}px; height:${CANVAS.h}px;`)
+const photoLayer = el('div', 'layer photo-layer')
+const artImg = el('img', 'layer art-layer')
+artImg.src = ART_PRIMARY
+artImg.alt = ''
+artImg.draggable = false
+const overlayLayer = el('div', 'layer overlay-layer')
+const hitLayer = el('div', 'layer hit-layer')
+
+canvas.append(photoLayer, artImg, overlayLayer, hitLayer)
+stage.append(canvas)
+app.append(stage)
+
+function applyScale() {
+  const scale = Math.min(stage.clientWidth / CANVAS.w, stage.clientHeight / CANVAS.h)
+  canvas.style.transform = `scale(${scale})`
+}
+new ResizeObserver(applyScale).observe(stage)
+applyScale()
+
+// --- Logo easter egg ---
+const LOGO_SOUND_ID = 'logo-bat'
+const logoHit = el('button', 'hit-target', rectStyle(LOGO))
+logoHit.type = 'button'
+logoHit.setAttribute('aria-label', 'Redding Lugnuts')
+logoHit.addEventListener('click', () => engine.playOneShot(LOGO_SOUND_ID))
+hitLayer.appendChild(logoHit)
+
+// --- Top row: Pre-Game + Ballpark FX ---
+const topRowPads = pads.filter((p) => p.category !== 'walkup')
+
+topRowPads.forEach((pad) => {
+  const slot = slotFor(pad)
+
+  if (pad.image) {
+    const img = el('img', 'toprow-photo', rectStyle(slot.art))
+    img.src = pad.image
+    img.alt = ''
+    photoLayer.appendChild(img)
+  }
+
+  const captionEl = el('div', 'toprow-caption', rectStyle(captionRectFor(pad)))
+  captionEl.textContent = pad.label
+  overlayLayer.appendChild(captionEl)
+
+  const ledEl = el('div', 'led led--round', rectStyle(ledRectFor(pad)))
+  overlayLayer.appendChild(ledEl)
+
+  const hitEl = el('button', 'hit-target', rectStyle(hitRectFor(pad)))
+  hitEl.type = 'button'
+  hitEl.setAttribute('aria-label', pad.label)
+  hitEl.addEventListener('click', () => handlePadActivate(pad))
+  hitLayer.appendChild(hitEl)
+
+  padRefs.set(pad.id, { pad, ledEl, hitEl })
+})
+
+// --- Master L/R VU meter ---
+const meterGroup = el('div', 'master-meter')
+overlayLayer.appendChild(meterGroup)
+
+function meterTier(i) {
+  if (i < 5) return 'meter-dot--green'
+  if (i < 10) return 'meter-dot--yellow'
+  return 'meter-dot--red'
+}
+
+function buildMeterDots(rects) {
+  // The first dot sits right on top of the L/R label, so it's dropped —
+  // green/yellow/red then splits 5/5/4 across the remaining 14.
+  return rects.slice(1).map((rect, i) => {
+    const dot = el('div', `meter-dot ${meterTier(i)}`, rectStyle(rect))
+    meterGroup.appendChild(dot)
+    return dot
+  })
+}
+const masterMeter = new MasterMeter(buildMeterDots(MASTER_METER.left), buildMeterDots(MASTER_METER.right), engine)
+
+// --- Clock ---
+const clockEl = el('div', 'clock', rectStyle(clockRect()))
+overlayLayer.appendChild(clockEl)
+startClock(clockEl)
+
+// --- STOP ALL ---
+const stopAllGlow = el('div', 'stopall-glow', rectStyle(STOP_ALL))
+overlayLayer.appendChild(stopAllGlow)
+
+const stopAllHit = el('button', 'hit-target', rectStyle(STOP_ALL))
+stopAllHit.type = 'button'
+stopAllHit.setAttribute('aria-label', 'Stop all sounds')
+stopAllHit.addEventListener('click', () => {
+  engine.stopAll()
+  stopAllGlow.classList.add('is-active')
+  setTimeout(() => stopAllGlow.classList.remove('is-active'), 220)
+})
+hitLayer.appendChild(stopAllHit)
+
+// --- Walk-Ups ---
+const walkupPads = pads.filter((p) => p.category === 'walkup')
+const walkupOverlayGroup = el('div', 'walkup-overlay-group')
+const walkupHitGroup = el('div', 'walkup-hit-group')
+overlayLayer.appendChild(walkupOverlayGroup)
+hitLayer.appendChild(walkupHitGroup)
+
+function wireWalkupGestures(hitEl, pad) {
+  let holdTimer = null
+  let holdFired = false
+
+  hitEl.style.touchAction = 'manipulation'
+  hitEl.addEventListener('contextmenu', (e) => e.preventDefault())
+
+  hitEl.addEventListener('pointerdown', () => {
+    holdFired = false
+    holdTimer = setTimeout(() => {
+      holdFired = true
+      openDetailCard(pad)
+    }, HOLD_THRESHOLD_MS)
+  })
+
+  const cancelHold = () => {
+    clearTimeout(holdTimer)
+  }
+
+  hitEl.addEventListener('pointerup', () => {
+    cancelHold()
+    if (!holdFired) handlePadActivate(pad)
+  })
+  hitEl.addEventListener('pointerleave', cancelHold)
+  hitEl.addEventListener('pointercancel', cancelHold)
+}
+
+walkupPads.forEach((pad) => {
+  // Open roster slots stay completely blank and inert — no number, no
+  // label, no hit target — until a real song gets assigned to them
+  // (eventually via a roster dashboard, for now via pads.js).
+  if (!pad.hasAudio) return
+
+  const numberEl = el('div', 'walkup-number', rectStyle(numberRectFor(pad)))
+  numberEl.textContent = pad.jerseyNumber ?? ''
+  walkupOverlayGroup.appendChild(numberEl)
+
+  const nameEl = el('div', 'walkup-name', rectStyle(nameRectFor(pad)))
+  nameEl.textContent = pad.label
+  walkupOverlayGroup.appendChild(nameEl)
+
+  const ledEl = el('div', 'led led--pill', rectStyle(ledRectFor(pad)))
+  walkupOverlayGroup.appendChild(ledEl)
+
+  const hitEl = el('button', 'hit-target', rectStyle(hitRectFor(pad)))
+  hitEl.type = 'button'
+  hitEl.setAttribute('aria-label', `${pad.label} — tap to play, hold for player info`)
+  wireWalkupGestures(hitEl, pad)
+  walkupHitGroup.appendChild(hitEl)
+
+  padRefs.set(pad.id, { pad, ledEl, hitEl })
+})
+
+// --- Player Detail Card ---
+// Two ways to present it: a pre-designed flattened PNG (pad.cardImage) when
+// one's been delivered for that player — full width, anchored to the
+// bottom, its own close X baked in — or the data-driven HTML template as a
+// fallback for every player who doesn't have real card art yet.
+const detailCardBounds = walkupSectionBounds()
+const detailCard = el('div', 'detail-card', rectStyle(detailCardBounds))
+detailCard.style.display = 'none'
+overlayLayer.appendChild(detailCard)
+
+const cardImageEl = el('img', 'player-card-image', rectStyle(playerCardImageRect()))
+cardImageEl.alt = ''
+cardImageEl.style.display = 'none'
+overlayLayer.appendChild(cardImageEl)
+
+const closeGlyph = el('div', 'detail-close-glyph', rectStyle(closeButtonRect()))
+closeGlyph.textContent = '×'
+closeGlyph.style.display = 'none'
+overlayLayer.appendChild(closeGlyph)
+
+const closeHit = el('button', 'hit-target', rectStyle(closeButtonRect()))
+closeHit.type = 'button'
+closeHit.style.display = 'none'
+closeHit.setAttribute('aria-label', 'Close player card')
+closeHit.addEventListener('click', closeDetailCard)
+hitLayer.appendChild(closeHit)
+
+function openDetailCard(pad) {
+  detailPad = pad
+  walkupOverlayGroup.style.visibility = 'hidden'
+  walkupHitGroup.style.visibility = 'hidden'
+
+  if (pad.cardImage) {
+    cardImageEl.src = pad.cardImage
+    cardImageEl.style.display = 'block'
+    closeHit.style.cssText = rectStyle(playerCardCloseRect())
+  } else {
+    artImg.src = ART_PLAYER
+    detailCard.innerHTML = renderDetailCard(pad)
+    detailCard.style.display = 'block'
+    closeGlyph.style.display = 'flex'
+    closeHit.style.cssText = rectStyle(closeButtonRect())
+  }
+  closeHit.style.display = 'block'
+}
+
+function closeDetailCard() {
+  detailPad = null
+  artImg.src = ART_PRIMARY
+  walkupOverlayGroup.style.visibility = ''
+  walkupHitGroup.style.visibility = ''
+  detailCard.style.display = 'none'
+  cardImageEl.style.display = 'none'
+  closeGlyph.style.display = 'none'
+  closeHit.style.display = 'none'
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && detailPad) closeDetailCard()
+})
+
+// --- Audio state -> visuals ---
+// padRefs only ever holds pads with a real audio file — coming-soon pads
+// never get wired up in the first place, so there's no hasAudio branching
+// needed here.
+function updatePadStates() {
+  padRefs.forEach(({ pad, ledEl, hitEl }) => {
+    const playing = engine.isPlaying(pad)
+
+    ledEl.classList.toggle('led--playing', playing)
+    hitEl.setAttribute('aria-pressed', String(playing))
+  })
+  masterMeter.setActive(engine.isAnythingPlaying())
+}
+
+engine.onChange(updatePadStates)
+engine.preloadAll(pads)
+engine.preloadOneShot(LOGO_SOUND_ID, '/audio/lugnuts-logo-bat-sound.mp3')
+updatePadStates()

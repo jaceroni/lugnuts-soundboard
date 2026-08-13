@@ -1,0 +1,536 @@
+/* ===================================================================
+   Tokens
+   =================================================================== */
+
+:root {
+  /* Brand-locked */
+  --color-panel: #0d0d0d;
+  --color-cardinal: #bb0004;
+  --color-iron: #afafaf;
+  --color-amber: #f2a93b;
+  --color-green: #4caf7d;
+  --color-bone: #edeae1;
+
+  /* Derived neutrals */
+  --color-cardinal-bright: #e40006;
+  --color-bone-dim: rgba(237, 234, 225, 0.68);
+  --color-bone-faint: rgba(237, 234, 225, 0.4);
+  --color-amber-dim: rgba(242, 169, 59, 0.5);
+
+  --font-display: 'Big Shoulders Stencil Display', 'Arial Narrow', sans-serif;
+  --font-body: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --dur-fast: 90ms;
+  --dur-med: 220ms;
+  --dur-slow: 450ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-med: 1ms;
+    --dur-slow: 1ms;
+  }
+}
+
+@font-face {
+  font-family: 'Digital-7';
+  src: url('/fonts/digital-7.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===================================================================
+   Reset
+   =================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--color-panel);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-bone);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-amber);
+  outline-offset: 3px;
+}
+
+/* ===================================================================
+   Stage — fixed-canvas + scale-transform
+   =================================================================== */
+
+.stage {
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-panel);
+}
+
+.canvas {
+  position: relative;
+  flex: none;
+  transform-origin: center center;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.photo-layer,
+.overlay-layer,
+.hit-layer {
+  pointer-events: none;
+}
+
+.art-layer {
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+
+.photo-layer {
+  z-index: 1;
+}
+
+.overlay-layer {
+  z-index: 3;
+}
+
+.hit-layer {
+  z-index: 4;
+}
+
+.toprow-photo {
+  position: absolute;
+  object-fit: cover;
+}
+
+.toprow-caption {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-bone);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+/* ===================================================================
+   LEDs — painted unlit into the art; lit states are a CSS glow drawn
+   on top at the same coordinates.
+   =================================================================== */
+
+.led {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity var(--dur-med), background var(--dur-slow) ease, box-shadow var(--dur-slow) ease;
+}
+
+.led--round {
+  border-radius: 50%;
+}
+
+.led--pill {
+  border-radius: 999px;
+}
+
+/* Every pad LED — round or pill — is green when active and otherwise
+   dark/unlit. No amber, no red, nothing else on the pads themselves (the
+   master meter's green/yellow/red is a separate, unrelated element). */
+.led--playing {
+  background: radial-gradient(circle, #eafff2 0%, var(--color-green) 45%, transparent 78%);
+  box-shadow: 0 0 16px 4px rgba(76, 175, 125, 0.5);
+  animation: led-pulse 1s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led--playing {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+/* ===================================================================
+   Master L/R meter
+   =================================================================== */
+
+.meter-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.meter-dot--green.is-lit {
+  background: radial-gradient(circle, #eafff2 0%, var(--color-green) 55%, transparent 80%);
+  box-shadow: 0 0 10px 3px rgba(76, 175, 125, 0.5);
+}
+
+.meter-dot--yellow.is-lit {
+  background: radial-gradient(circle, #fff8e6 0%, var(--color-amber) 55%, transparent 80%);
+  box-shadow: 0 0 10px 3px var(--color-amber-dim);
+}
+
+.meter-dot--red.is-lit {
+  background: radial-gradient(circle, #fff2f2 0%, var(--color-cardinal-bright) 55%, transparent 80%);
+  box-shadow: 0 0 12px 4px rgba(187, 0, 4, 0.55);
+}
+
+/* ===================================================================
+   Clock
+   =================================================================== */
+
+.clock {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Digital-7', var(--font-mono);
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
+  font-size: 150px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--color-cardinal-bright);
+  text-shadow: 0 0 16px rgba(228, 0, 6, 0.55);
+  pointer-events: none;
+}
+
+.clock__colon {
+  display: inline-block;
+  width: 0.5ch;
+}
+
+/* ===================================================================
+   STOP ALL
+   =================================================================== */
+
+.stopall-glow {
+  position: absolute;
+  border-radius: 10px;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.65), rgba(187, 0, 4, 0.4) 60%, transparent 80%);
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.stopall-glow.is-active {
+  opacity: 1;
+}
+
+/* ===================================================================
+   Walk-Up dynamic text (numbers, names — no cutout for these in the
+   art, so they render on top of it, not through it)
+   =================================================================== */
+
+.walkup-number {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Barlow Condensed', var(--font-display);
+  font-weight: 700;
+  font-size: 140px;
+  line-height: 1;
+  letter-spacing: 5px;
+  color: #a50e14;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 1);
+  -webkit-text-stroke: 6px rgba(255, 255, 255, 0.45);
+  paint-order: stroke fill;
+  pointer-events: none;
+}
+
+.walkup-name {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  text-align: center;
+  font-family: 'Barlow Condensed', var(--font-body);
+  font-weight: 700;
+  font-size: 23px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-bone);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+/* ===================================================================
+   Hit targets
+   =================================================================== */
+
+.hit-target {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hit-target:focus-visible {
+  outline: 3px solid var(--color-amber);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+/* ===================================================================
+   Player Detail Card — takes over the Walk-Up section's footprint
+   =================================================================== */
+
+.detail-card {
+  position: absolute;
+}
+
+.player-card-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.detail-card__body {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 28px 36px;
+}
+
+.detail-card__info {
+  flex: 1 1 55%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-card__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(38px, 4.6vw, 72px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--color-bone);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.detail-card__position {
+  margin: 0;
+  width: fit-content;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.42);
+  font-family: var(--font-mono);
+  font-size: clamp(13px, 1.2vw, 18px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-bone-dim);
+}
+
+.detail-card__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.detail-stat__track {
+  position: relative;
+  height: 34px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+}
+
+.detail-stat__fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: linear-gradient(90deg, #3d7fd6, var(--color-amber) 65%, var(--color-cardinal-bright));
+  transition: width 480ms var(--ease-snap);
+}
+
+.detail-stat__label {
+  position: relative;
+  z-index: 1;
+  padding: 0 12px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-bone);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.detail-card__stats-note {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-bone-faint);
+}
+
+.detail-photo {
+  position: relative;
+  flex: 1 1 40%;
+  min-height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-photo__wash {
+  position: absolute;
+  inset: -10%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(2px) saturate(0.6) brightness(0.6);
+  opacity: 0.55;
+  mask-image: linear-gradient(90deg, transparent, black 40%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 40%);
+}
+
+.detail-photo__cutout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.detail-photo--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.detail-photo__initials {
+  font-family: var(--font-display);
+  font-size: 64px;
+  color: var(--color-bone-faint);
+}
+
+.detail-photo__soon {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-bone-faint);
+}
+
+.detail-close-glyph {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  font-family: var(--font-body);
+  font-size: 32px;
+  line-height: 1;
+  color: var(--color-bone);
+  pointer-events: none;
+}
+
+/* ===================================================================
+   Toast
+   =================================================================== */
+
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--color-bone);
+  background: #18181a;
+  border: 1px solid var(--color-amber);
+  border-left: 4px solid var(--color-amber);
+  border-radius: 6px;
+  padding: 12px 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity var(--dur-med) ease, transform var(--dur-med) var(--ease-snap);
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
