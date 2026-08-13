@@ -1,15 +1,13 @@
-// Walkup songs share one exclusive group; every top-row pad (pregame + fx)
-// is layered and independent of everything.
+// Two independent exclusive lanes: "upper" (pregame + fx) and "walkup".
 //
-// - Walkup: exclusive — starting one cuts off whatever other walkup song is
-//   currently playing, full stop, no locking. Retriggering the same song
-//   restarts it rather than stopping it, like a typical soundboard trigger.
-// - Top row (pad.layered === true): each pad is its own independent
-//   trigger — it never cuts, and is never cut by, anything else, including
-//   other top-row pads or a playing walkup song. Charge Organ and Crowd
-//   Upset can run at the same time; so can a walkup song and any number of
-//   top-row pads. Retriggering the same top-row pad restarts just that one
-//   (same soundboard-trigger rule) rather than stacking multiple copies.
+// - Within a lane, starting any pad cuts off whatever else in that same
+//   lane is currently playing, full stop, no locking. Retriggering the
+//   same pad restarts it rather than stopping it — every pad fires like a
+//   typical soundboard trigger, never a toggle.
+// - The two lanes never interact — a walk-up song playing doesn't stop a
+//   top-row pad from starting, and vice versa, in either direction. So at
+//   most one upper-row pad and one walk-up song can ever play at once, but
+//   never two pads from the same row.
 //
 // Clips are fetched once and decoded to an AudioBuffer so every trigger
 // after that is a zero-latency BufferSource start. A DynamicsCompressorNode
@@ -25,6 +23,10 @@ function rms(byteTimeDomainData) {
   return Math.sqrt(sum / byteTimeDomainData.length)
 }
 
+function laneKeyFor(pad) {
+  return pad.category === 'walkup' ? 'walkup' : 'upper'
+}
+
 export class SoundEngine {
   #ctx = null
   #compressor = null
@@ -35,8 +37,10 @@ export class SoundEngine {
   #buffers = new Map()
   #oneShotBuffers = new Map()
   #loadStatus = new Map()
-  #exclusive = { padId: null, source: null, token: 0 }
-  #layeredLanes = new Map()
+  #lanes = {
+    upper: { padId: null, source: null, token: 0 },
+    walkup: { padId: null, source: null, token: 0 },
+  }
   #allSources = new Set()
   #listeners = new Set()
 
@@ -150,8 +154,7 @@ export class SoundEngine {
   }
 
   isPlaying(pad) {
-    if (pad.layered) return this.#layeredLanes.has(pad.id)
-    return this.#exclusive.padId === pad.id
+    return this.#lanes[laneKeyFor(pad)].padId === pad.id
   }
 
   isAnythingPlaying() {
@@ -179,11 +182,7 @@ export class SoundEngine {
     if (status === 'error') return { ok: false, reason: 'unavailable' }
     if (status !== 'ready') return { ok: false, reason: 'loading' }
 
-    if (pad.layered) {
-      this.#playLayered(pad)
-    } else {
-      this.#playExclusive(pad)
-    }
+    this.#playExclusive(pad)
     return { ok: true }
   }
 
@@ -204,68 +203,42 @@ export class SoundEngine {
     return source
   }
 
-  #stopExclusiveSource() {
-    if (this.#exclusive.source) {
-      this.#exclusive.token++ // invalidates the outgoing source's onended before we stop() it
+  #stopLaneSource(laneKey) {
+    const lane = this.#lanes[laneKey]
+    if (lane.source) {
+      lane.token++ // invalidates the outgoing source's onended before we stop() it
       try {
-        this.#exclusive.source.stop()
+        lane.source.stop()
       } catch {
         /* already stopped */
       }
-      this.#exclusive.source = null
+      lane.source = null
     }
-    this.#exclusive.padId = null
+    lane.padId = null
   }
 
   #playExclusive(pad) {
+    const laneKey = laneKeyFor(pad)
+    const lane = this.#lanes[laneKey]
+
     // Always cuts and restarts — including re-tapping the same pad — like a
     // typical soundboard trigger rather than a play/stop toggle.
-    this.#stopExclusiveSource()
+    this.#stopLaneSource(laneKey)
 
     const buffer = this.#buffers.get(pad.id)
-    const token = ++this.#exclusive.token
+    const token = ++lane.token
     const source = this.#makeSource(buffer, pad.fadeInMs)
     this.#allSources.add(source)
     source.onended = () => {
       this.#allSources.delete(source)
-      if (this.#exclusive.token !== token) return
-      this.#exclusive.padId = null
-      this.#exclusive.source = null
+      if (lane.token !== token) return
+      lane.padId = null
+      lane.source = null
       this.#emit()
     }
 
-    this.#exclusive.padId = pad.id
-    this.#exclusive.source = source
-    source.start()
-    this.#emit()
-  }
-
-  #playLayered(pad) {
-    // Each layered pad is its own single-slot lane, keyed by id — retapping
-    // the same one cuts and restarts it (like the shared exclusive group
-    // does), but a different layered pad is a different lane entirely, so
-    // crowd cheer and crowd upset can still run at the same time.
-    const existing = this.#layeredLanes.get(pad.id)
-    const token = (existing?.token ?? 0) + 1
-    if (existing) {
-      try {
-        existing.source.stop()
-      } catch {
-        /* already stopped */
-      }
-    }
-
-    const buffer = this.#buffers.get(pad.id)
-    const source = this.#makeSource(buffer, pad.fadeInMs)
-    this.#allSources.add(source)
-    this.#layeredLanes.set(pad.id, { source, token })
-
-    source.onended = () => {
-      this.#allSources.delete(source)
-      if (this.#layeredLanes.get(pad.id)?.token !== token) return
-      this.#layeredLanes.delete(pad.id)
-      this.#emit()
-    }
+    lane.padId = pad.id
+    lane.source = source
     source.start()
     this.#emit()
   }

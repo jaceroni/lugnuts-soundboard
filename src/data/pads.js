@@ -11,11 +11,6 @@
 //   category: 'pregame' | 'fx' | 'walkup'
 //   audioFile: string | null
 //   hasAudio: boolean        — false renders the "coming soon" placeholder state
-//   layered: boolean         — true means it never cuts and is never cut by
-//                              anything else, including retriggering itself
-//                              (restarts, doesn't stack). The whole top row
-//                              (pregame + fx) is layered against everything;
-//                              only walkup songs are mutually exclusive.
 //   image: string | null     — pregame/fx only: optional photo/graphic for the ID window
 //   fadeInMs: number         — pregame/fx only: ramps in from silence over this
 //                              many ms instead of starting instantly; 0 = no fade
@@ -72,7 +67,6 @@ const topRowPads = coordinates.topRow.map((slot) => ({
   image: `/pads/${slot.id}.png`,
   audioFile: audioFileFor(slot.id),
   hasAudio: true,
-  layered: true,
   fadeInMs: FADE_IN_MS[slot.id] ?? 0,
 }))
 
@@ -82,7 +76,6 @@ const walkupPads = coordinates.walkups.map((slot) => ({
   category: 'walkup',
   audioFile: slot.hasAudio ? audioFileFor(slot.id) : null,
   hasAudio: slot.hasAudio,
-  layered: false,
   jerseyNumber: slot.jerseyNumber,
   cardImage: CARD_IMAGES[slot.id] ?? null,
 }))
