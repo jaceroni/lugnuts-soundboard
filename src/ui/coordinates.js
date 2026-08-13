@@ -10,6 +10,11 @@ export const STOP_ALL = coordinates.controls.stopAll
 // left of the panel).
 export const LOGO = { x: 18, y: 18, w: 260, h: 260 }
 
+// The blank plate to the right of STOP ALL (screwed-down bezel, no baked
+// label) — measured off the art the same way. Repurposed as the fullscreen
+// toggle since it wasn't doing anything.
+export const FULLSCREEN_PLATE = { x: 1622, y: 62, w: 376, h: 152 }
+
 const topRowById = new Map(coordinates.topRow.map((slot) => [slot.id, slot]))
 const walkupById = new Map(coordinates.walkups.map((slot) => [slot.id, slot]))
 

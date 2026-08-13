@@ -68,6 +68,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* This is a touch kiosk, not a document — nothing here is ever meant to be
+   selected, and iOS's long-press callout/selection UI (the grey highlight
+   + copy menu) is exactly what a press-and-hold gesture shouldn't trigger. */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 #app {
   height: 100%;
 }
@@ -93,7 +103,10 @@ button {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: var(--color-panel);
+  /* Dark olive rather than flat black — the fixed-canvas art's own edges
+     are a dark grass tone, so any unavoidable letterboxing (aspect-ratio
+     mismatch against the device) reads as shadow instead of a stark bar. */
+  background: #17170c;
 }
 
 .canvas {
@@ -266,6 +279,26 @@ button {
 
 .stopall-glow.is-active {
   opacity: 1;
+}
+
+/* ===================================================================
+   Fullscreen toggle — the blank plate next to STOP ALL, no baked label
+   =================================================================== */
+
+.fullscreen-label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-bone-dim);
+  pointer-events: none;
 }
 
 /* ===================================================================

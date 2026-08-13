@@ -20,6 +20,7 @@ import {
   MASTER_METER,
   STOP_ALL,
   LOGO,
+  FULLSCREEN_PLATE,
   slotFor,
   hitRectFor,
   numberRectFor,
@@ -165,6 +166,48 @@ stopAllHit.addEventListener('click', () => {
   setTimeout(() => stopAllGlow.classList.remove('is-active'), 220)
 })
 hitLayer.appendChild(stopAllHit)
+
+// --- Fullscreen toggle (repurposes the blank plate next to STOP ALL) ---
+// iPhone Safari has never supported the Fullscreen API for regular pages;
+// iPadOS Safari gained it in 16.4. Feature-detected so the plate just stays
+// blank/inert on anything that can't do it, rather than showing a dead button.
+function fullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null
+}
+
+const canFullscreen = Boolean(
+  document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen
+)
+
+if (canFullscreen) {
+  const fullscreenGlow = el('div', 'stopall-glow', rectStyle(FULLSCREEN_PLATE))
+  overlayLayer.appendChild(fullscreenGlow)
+
+  const fullscreenLabel = el('div', 'fullscreen-label', rectStyle(FULLSCREEN_PLATE))
+  fullscreenLabel.textContent = 'FULLSCREEN'
+  overlayLayer.appendChild(fullscreenLabel)
+
+  const fullscreenHit = el('button', 'hit-target', rectStyle(FULLSCREEN_PLATE))
+  fullscreenHit.type = 'button'
+  fullscreenHit.setAttribute('aria-label', 'Toggle fullscreen')
+  fullscreenHit.addEventListener('click', () => {
+    if (fullscreenElement()) {
+      ;(document.exitFullscreen || document.webkitExitFullscreen)?.call(document)
+    } else {
+      const target = document.documentElement
+      ;(target.requestFullscreen || target.webkitRequestFullscreen)?.call(target)
+    }
+    fullscreenGlow.classList.add('is-active')
+    setTimeout(() => fullscreenGlow.classList.remove('is-active'), 220)
+  })
+  hitLayer.appendChild(fullscreenHit)
+
+  const updateFullscreenLabel = () => {
+    fullscreenLabel.textContent = fullscreenElement() ? 'EXIT FULLSCREEN' : 'FULLSCREEN'
+  }
+  document.addEventListener('fullscreenchange', updateFullscreenLabel)
+  document.addEventListener('webkitfullscreenchange', updateFullscreenLabel)
+}
 
 // --- Walk-Ups ---
 const walkupPads = pads.filter((p) => p.category === 'walkup')
